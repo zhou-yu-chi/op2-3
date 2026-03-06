@@ -4,6 +4,7 @@ import json
 import shutil
 import traceback
 import zipfile
+import re
 from datetime import datetime
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QSlider, QFileDialog, QMessageBox, QGroupBox, QLineEdit,
@@ -13,12 +14,12 @@ from PySide6.QtCore import Qt, QDate
 # ==========================================
 # 🔧 1. 路徑設定 (依照你的 OP3 專案修改)
 # ==========================================
-MODEL_BASE_DIR = r"C:\3-1_3-3\model"
-CONFIG_FILE = r"S22009--Conquer-Fuse-Assembly-Automation-OP3\config.json"  # 放在同層目錄即可
+MODEL_BASE_DIR = r"C:\2-3_2-6\model"
+CONFIG_FILE = r"C:\2-3_2-6\camera_sdk\congig.json"  # 放在同層目錄即可
 
 # 圖片根目錄 (參照 op3_save_images.py)
-IMG_ROOT_OP3_1 = r"C:\G_D_2\S22009--Conquer-Fuse-Assembly-Automation-OP3\picture"
-IMG_ROOT_OP3_3 = r"C:\3-1_3-3\OP3-3_pictures"
+IMG_ROOT_OP3_1 = r"C:\2-3_2-6\OP2-3_pictures"
+IMG_ROOT_OP3_3 = r"C:\2-3_2-6\OP2-6_pictures"
 
 class DateRangeDialog(QDialog):
     """ 彈出式視窗：選擇日期範圍 """
@@ -206,10 +207,10 @@ class SettingsEditor(QWidget):
         model_layout = QVBoxLayout(group_model)
 
         # 針對 OP3-1 建立欄位
-        self.create_row(model_layout, "OP3-1 相機", "op3_1", img_root=IMG_ROOT_OP3_1)
+        self.create_row(model_layout, "OP2-3 相機", "op3_1", img_root=IMG_ROOT_OP3_1)
         
         # 針對 OP3-3 建立欄位
-        self.create_row(model_layout, "OP3-3 相機", "op3_3", img_root=IMG_ROOT_OP3_3)
+        self.create_row(model_layout, "OP2-6 相機", "op3_3", img_root=IMG_ROOT_OP3_3)
         
         layout.addWidget(group_model)
 
@@ -288,22 +289,28 @@ class SettingsEditor(QWidget):
             print("[Error] 目錄不存在")
             return matched_files
 
-        # ★ 修正 3：改用 os.walk 支援包含子資料夾的掃描
         try:
             for dirpath, _, filenames in os.walk(root_dir):
                 for file_name in filenames:
                     if not file_name.lower().endswith(('.jpg', '.png', '.jpeg', '.bmp')):
                         continue
 
-                    # 嘗試從檔名解析日期 (例如: 20260306_xxx.jpg)
-                    try:
-                        date_part = file_name[:8] 
-                        file_date = datetime.strptime(date_part, "%Y%m%d").date()
-                        
-                        if start_date <= file_date <= end_date:
-                            file_path = os.path.join(dirpath, file_name)
-                            matched_files.append(file_path)
-                    except ValueError:
+                    # ★ 修改：使用正則表達式找出檔名中連續的 8 個數字 (YYYYMMDD)
+                    match = re.search(r'(\d{8})', file_name)
+                    if match:
+                        date_part = match.group(1)
+                        try:
+                            file_date = datetime.strptime(date_part, "%Y%m%d").date()
+                            
+                            # 判斷是否在選定的日期範圍內
+                            if start_date <= file_date <= end_date:
+                                file_path = os.path.join(dirpath, file_name)
+                                matched_files.append(file_path)
+                        except ValueError:
+                            # 萬一那 8 個數字不是合法日期，就跳過
+                            continue
+                    else:
+                        # 檔名沒有 8 位數字的情形 (可能是其他系統生成的圖片)
                         continue
                         
         except Exception as e:
